@@ -20,6 +20,20 @@ reproducible command and served through a single-page Flask web app.
 
 ---
 
+## 🌐 Live demo
+
+**Run it locally** (see [Quick start](#-quick-start-3-commands)) and open **http://localhost:5000**.
+
+> On macOS, port 5000 is taken by the AirPlay Receiver, so the app serves at
+> **http://localhost:5001** there (`PORT=5001 python app.py`).
+
+> ℹ️ **No public hosted demo yet.** SafeScan needs a Python/Flask backend, so it can't run on
+> GitHub Pages (static only). The included [`Dockerfile`](Dockerfile) deploys as-is to
+> Render, Railway, Fly.io, or Hugging Face Spaces — once live, the URL goes here:
+> **`<add-deployment-url>`**.
+
+---
+
 ## 🖼️ Screenshot
 
 ![SafeScan UI](docs/screenshot.png)
