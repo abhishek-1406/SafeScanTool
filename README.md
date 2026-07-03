@@ -1,3 +1,15 @@
+---
+title: SafeScan
+emoji: 🛡️
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 5000
+pinned: false
+license: other
+short_description: Explainable multimodal hate-speech detection (text + memes)
+---
+
 # 🛡️ SafeScan — Explainable Multimodal Hate Speech Detection
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
