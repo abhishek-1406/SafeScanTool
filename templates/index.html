@@ -54,6 +54,10 @@
   .badge.offensive { background: rgba(245,158,11,.14); color: var(--amber); border: 1px solid rgba(245,158,11,.35); }
   .badge.hatespeech, .badge.hateful { background: rgba(239,68,68,.14); color: var(--red); border: 1px solid rgba(239,68,68,.35); }
   .muted { color: var(--muted); font-size: 13px; }
+  .seg { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted);
+         cursor: pointer; padding: 5px 11px; border: 1px solid var(--border); border-radius: 20px; }
+  .seg:hover { color: var(--text); }
+  .seg input { accent-color: var(--accent); margin: 0; }
   .prob { margin-top: 6px; }
   .prob .label-row { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 3px; }
   .bar { height: 8px; background: var(--bg2); border-radius: 6px; overflow: hidden; }
@@ -112,6 +116,11 @@
     <div class="card">
       <label class="muted">Enter a post, tweet, or comment to classify (Normal / Offensive / Hate speech):</label>
       <textarea id="textInput" placeholder="Type or paste text here…"></textarea>
+      <div class="row" style="margin-bottom:2px">
+        <span class="muted">Model:</span>
+        <label class="seg"><input type="radio" name="model" value="svm" checked> SVM · fast, exact SHAP</label>
+        <label class="seg" id="bertOpt" style="display:none"><input type="radio" name="model" value="bert"> BERT · most accurate</label>
+      </div>
       <div class="row">
         <button class="go" id="textBtn">Analyze text</button>
         <span class="muted">Samples:</span>
@@ -186,15 +195,21 @@ function wcolor(w, max) {
 // ================= TEXT =================
 document.querySelectorAll(".chip-sample").forEach(c => c.onclick = () => { $("#textInput").value = c.dataset.s; });
 $("#textBtn").onclick = analyzeText;
+// Reveal the BERT option only if the server actually has the checkpoint loaded.
+fetch(api + "/health").then(r => r.json()).then(h => {
+  if (h.bert_available) $("#bertOpt").style.display = "";
+}).catch(() => {});
 async function analyzeText() {
   const text = $("#textInput").value.trim();
   if (!text) return;
+  const model = (document.querySelector('input[name=model]:checked') || {}).value || "svm";
   const btn = $("#textBtn"), box = $("#textResult");
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Analyzing';
-  box.style.display = "block"; box.innerHTML = '<span class="muted">Running SVM + SHAP attribution…</span>';
+  box.style.display = "block";
+  box.innerHTML = `<span class="muted">Running ${model.toUpperCase()} ${model === "bert" ? "+ occlusion attribution" : "+ SHAP attribution"}…</span>`;
   try {
     const r = await fetch(api + "/analyze/text", {
-      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text})
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, model})
     });
     const d = await r.json();
     if (!r.ok) { box.innerHTML = `<div class="err">${d.error || "Error"}</div>`; return; }
@@ -217,12 +232,14 @@ function renderText(d, text) {
   const chips = d.words.map(w =>
     `<span class="word" style="background:${wcolor(w.weight, maxW)}">${w.word} <b>${w.weight>=0?"+":""}${w.weight}</b></span>`
   ).join("");
+  const method = d.model === "bert" ? "occlusion" : "SHAP-style linear";
   $("#textResult").innerHTML = `
     <div class="row" style="justify-content:space-between">
       <span class="badge ${cls(d.label)}">${d.label.toUpperCase()} · ${pct(d.confidence)} confidence</span>
+      <span class="muted">model: <b>${(d.model||"svm").toUpperCase()}</b></span>
     </div>
     <div style="margin-top:16px">${probs}</div>
-    <h4 style="margin:20px 0 4px">Word-level explanation (SHAP-style)</h4>
+    <h4 style="margin:20px 0 4px">Word-level explanation (${method})</h4>
     <div class="muted">Red = pushes toward the prediction · blue = pushes away.</div>
     <div class="highlight">${hl}</div>
     <div class="words">${chips || '<span class="muted">No in-vocabulary tokens to attribute.</span>'}</div>`;

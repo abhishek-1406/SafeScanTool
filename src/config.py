@@ -22,9 +22,15 @@ ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = Path(os.environ.get("MODELS_DIR", ROOT / "models"))
 DATA_PATH = Path(os.environ.get("DATA_PATH", ROOT / "Data" / "updated_hatexplain_data.csv"))
 
-# Text (SVM) artifacts — the model the web app serves for /analyze/text.
+# Text (SVM) artifacts — the fast, exactly-explainable model for /analyze/text.
 SVM_MODEL_PATH = Path(os.environ.get("SVM_MODEL_PATH", MODELS_DIR / "svm_model.pkl"))
 SVM_VECTORIZER_PATH = Path(os.environ.get("SVM_VECTORIZER_PATH", MODELS_DIR / "svm_vectorizer.pkl"))
+
+# BERT checkpoint (optional). Served when the text tab's model selector picks it.
+BERT_MODEL_DIR = Path(os.environ.get("BERT_MODEL_DIR", MODELS_DIR / "bert"))
+
+# HF model repo the Docker build pulls trained artifacts from.
+MODELS_REPO_ID = os.environ.get("MODELS_REPO_ID", "casanovaabhishek14/safescan-models")
 
 # Registry files produced by training / auditing (read by the comparison tabs).
 METRICS_PATH = Path(os.environ.get("METRICS_PATH", MODELS_DIR / "metrics.json"))

@@ -65,6 +65,48 @@ def explain_text(model, vectorizer, text: str, top_k: int = 15) -> Dict:
     }
 
 
+def explain_text_bert(model, tokenizer, text: str, top_k: int = 15,
+                      max_words: int = 30) -> Dict:
+    """Predict with BERT and attribute words via *occlusion*.
+
+    BERT isn't linear, so there's no closed-form SHAP like the SVM. Instead we
+    remove each word and measure how much the predicted-class probability drops —
+    a model-agnostic importance that mirrors the SVM tab's highlights. Cost is one
+    forward pass per word (capped at ``max_words`` to bound CPU latency).
+    """
+    import torch
+
+    device = next(model.parameters()).device
+    words = basic_clean(text).split()
+
+    def _probs(word_list) -> np.ndarray:
+        enc = tokenizer(" ".join(word_list), return_tensors="pt",
+                        truncation=True, max_length=128).to(device)
+        with torch.no_grad():
+            logits = model(**enc).logits[0]
+        return torch.softmax(logits, dim=-1).cpu().numpy()
+
+    base = _probs(words)
+    pred_id = int(base.argmax())
+
+    scored = []
+    for i in range(min(len(words), max_words)):
+        occluded = words[:i] + words[i + 1:]
+        drop = float(base[pred_id] - _probs(occluded)[pred_id])  # + => word supports the label
+        scored.append((words[i], drop))
+    pairs = sorted(scored, key=lambda t: abs(t[1]), reverse=True)[:top_k]
+
+    return {
+        "label": ID2LABEL[pred_id],
+        "label_id": pred_id,
+        "cleaned_text": " ".join(words),
+        "probabilities": {ID2LABEL[i]: round(float(base[i]), 4) for i in range(len(base))},
+        "confidence": round(float(base[pred_id]), 4),
+        "words": [{"word": w, "weight": round(v, 4)} for w, v in pairs],
+        "method": "occlusion",
+    }
+
+
 # --------------------------------------------------------------------------- #
 # IMAGE — Grad-CAM over the CLIP vision transformer
 # --------------------------------------------------------------------------- #

@@ -37,9 +37,10 @@ reproducible command and served through a single-page Flask web app.
 
 ### ▶️ **[Try it live → casanovaabhishek14-safescan.hf.space](https://casanovaabhishek14-safescan.hf.space)**
 
-Hosted free on Hugging Face Spaces (Docker). **All four tabs are live** — SVM text
-classifier (SHAP), the CLIP + OCR meme tab (Grad-CAM), model comparison, and the fairness
-audit. Training the heavier BERT / Bi-LSTM models is free too — see [docs/TRAINING.md](docs/TRAINING.md).
+Hosted free on Hugging Face Spaces (Docker). **All four tabs are live** — a text classifier
+with a **SVM / BERT** model selector (SHAP for SVM, occlusion attribution for BERT), the
+CLIP + OCR meme tab (Grad-CAM), model comparison, and the fairness audit. Retrain the models
+for free on a GPU — see [docs/TRAINING.md](docs/TRAINING.md).
 
 Or run it locally (see [Quick start](#-quick-start-3-commands)) and open **http://localhost:5000**.
 

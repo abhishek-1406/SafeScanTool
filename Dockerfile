@@ -45,7 +45,16 @@ RUN mkdir -p models && chmod -R 777 models
 
 EXPOSE 5000
 
-# Train the SVM + fairness audit at build so the app has something to serve.
-RUN python -m src.train_svm && python -m src.fairness
+# Pull the pre-trained models (SVM + BERT + metrics.json) from the HF model repo,
+# then build the fairness audit from the downloaded SVM. If the download fails, fall
+# back to training the SVM in-container so the build never hard-breaks (no BERT then).
+ARG MODELS_REPO_ID=casanovaabhishek14/safescan-models
+ENV MODELS_REPO_ID=${MODELS_REPO_ID}
+RUN (python -c "from huggingface_hub import snapshot_download; \
+    snapshot_download('${MODELS_REPO_ID}', local_dir='models', repo_type='model')" \
+    && python -m src.fairness) \
+    || (echo 'MODEL DOWNLOAD FAILED — training SVM in-container' \
+        && python -m src.train_svm && python -m src.fairness) \
+    && chmod -R 777 models
 
 CMD ["python", "app.py"]

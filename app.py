@@ -26,7 +26,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from src import config
-from src.explainability import explain_text, gradcam_clip
+from src.explainability import explain_text, explain_text_bert, gradcam_clip
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_MB * 1024 * 1024
@@ -46,10 +46,30 @@ def _load_svm():
 
 
 @lru_cache(maxsize=1)
+def _load_bert():
+    if not (config.BERT_MODEL_DIR / "config.json").exists():
+        raise FileNotFoundError(
+            "BERT model not found. Train and place it under models/bert/ "
+            "(see docs/TRAINING.md)."
+        )
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(str(config.BERT_MODEL_DIR))
+    model = AutoModelForSequenceClassification.from_pretrained(str(config.BERT_MODEL_DIR))
+    model.to("cuda" if torch.cuda.is_available() else "cpu").eval()
+    return model, tokenizer
+
+
+@lru_cache(maxsize=1)
 def _load_meme_classifier():
     from src.clip_meme_pipeline import get_classifier
 
     return get_classifier()
+
+
+def _bert_available() -> bool:
+    return (config.BERT_MODEL_DIR / "config.json").exists()
 
 
 def _read_json(path: Path):
@@ -72,13 +92,23 @@ def analyze_text():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify({"error": "Provide a non-empty 'text' field."}), 400
+    which = (data.get("model") or "svm").lower()
+    top_k = min(max(int(data.get("top_k", 15)), 1), 40)
+
     try:
-        model, vectorizer = _load_svm()
+        if which == "bert":
+            model, tokenizer = _load_bert()
+            result = explain_text_bert(model, tokenizer, text, top_k=top_k)
+        else:
+            model, vectorizer = _load_svm()
+            result = explain_text(model, vectorizer, text, top_k=top_k)
     except FileNotFoundError as e:
         return jsonify({"error": str(e)}), 503
-    top_k = min(max(int(data.get("top_k", 15)), 1), 40)
-    result = explain_text(model, vectorizer, text, top_k=top_k)
+    except ImportError as e:
+        return jsonify({"error": f"BERT needs the multimodal extras (missing: {e.name})."}), 503
+
     result["input"] = text
+    result["model"] = which
     return jsonify(result)
 
 
@@ -132,6 +162,7 @@ def health():
     return jsonify({
         "status": "ok",
         "svm_available": config.SVM_MODEL_PATH.exists(),
+        "bert_available": _bert_available(),
         "metrics_available": config.METRICS_PATH.exists(),
         "fairness_available": config.FAIRNESS_PATH.exists(),
     })
