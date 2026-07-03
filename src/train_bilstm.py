@@ -63,13 +63,18 @@ def build_model(num_words: int, embedding_matrix: np.ndarray | None):
     from tensorflow.keras.layers import (
         Bidirectional, Dense, Dropout, Embedding, LSTM,
     )
+    from tensorflow.keras.initializers import Constant
     from tensorflow.keras.models import Sequential
 
+    # NB: Keras 3 (TF 2.16+) dropped Embedding's ``input_length`` arg and the
+    # ``weights=[...]`` constructor kwarg — use an initializer instead so this
+    # runs on both Keras 2 and Keras 3 (e.g. Colab).
     if embedding_matrix is not None:
-        embed = Embedding(num_words, EMBED_DIM, weights=[embedding_matrix],
-                          input_length=MAX_LEN, trainable=False)
+        embed = Embedding(num_words, EMBED_DIM,
+                          embeddings_initializer=Constant(embedding_matrix),
+                          trainable=False)
     else:
-        embed = Embedding(num_words, EMBED_DIM, input_length=MAX_LEN, trainable=True)
+        embed = Embedding(num_words, EMBED_DIM, trainable=True)
 
     model = Sequential([
         embed,

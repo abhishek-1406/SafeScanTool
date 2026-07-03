@@ -20,8 +20,13 @@ trains **BERT** and **Bi-LSTM** on a free GPU and uploads them (plus the merged
 ```python
 !git clone https://github.com/abhishek-1406/SafeScanTool.git
 %cd SafeScanTool
-!pip install -q -r requirements.txt -r requirements-ml.txt
+# Colab/Kaggle already ship torch, tensorflow, scikit-learn, pandas — adding the
+# pinned requirements-ml.txt fights their versions (ResolutionImpossible), so only
+# install the few extras the training actually needs:
+!pip install -q -U transformers datasets accelerate
 ```
+> On your **own machine** (not Colab), use the pinned set instead:
+> `pip install -r requirements.txt -r requirements-ml.txt`.
 
 **Cell 2 — train all text models** (SVM + Bi-LSTM + BERT)
 ```python
