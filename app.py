@@ -103,7 +103,11 @@ def analyze_meme():
             }), 503
         except Exception as e:  # noqa: BLE001
             return jsonify({"error": f"Failed to load CLIP model: {e}"}), 503
-        result = gradcam_clip(classifier, tmp.name)
+        try:
+            result = gradcam_clip(classifier, tmp.name)
+        except Exception as e:  # noqa: BLE001 — return JSON, never a 500 HTML page
+            app.logger.exception("meme analysis failed")
+            return jsonify({"error": f"Meme analysis failed: {e}"}), 500
     return jsonify(result)
 
 

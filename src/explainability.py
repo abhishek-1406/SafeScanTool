@@ -82,61 +82,65 @@ def gradcam_clip(classifier, image_path: str, alpha: float = 0.5) -> Dict:
     processor = classifier.processor
     device = classifier.device
 
-    image = Image.open(image_path).convert("RGB")
-    inputs = processor(images=image, return_tensors="pt").to(device)
-
-    # Hook the last vision encoder layer to capture activations + gradients.
-    vision = model.vision_model
-    target_layer = vision.encoder.layers[-1]
-    activations, gradients = {}, {}
-
-    def fwd_hook(_m, _i, out):
-        activations["value"] = out[0] if isinstance(out, tuple) else out
-
-    def bwd_hook(_m, _gi, go):
-        gradients["value"] = go[0]
-
-    h1 = target_layer.register_forward_hook(fwd_hook)
-    h2 = target_layer.register_full_backward_hook(bwd_hook)
-
-    try:
-        model.zero_grad()
-        img_emb = model.get_image_features(**inputs)
-        img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
-        # Similarity to the "hateful" prototype is the quantity we explain.
-        hateful_proto = classifier._generic_protos[1:2]  # (1, d)
-        score = (img_emb @ hateful_proto.T).squeeze()
-        score.backward()
-
-        acts = activations["value"].detach()      # (1, seq, dim)
-        grads = gradients["value"].detach()        # (1, seq, dim)
-        # Drop the CLS token (index 0); the rest are the patch tokens.
-        acts, grads = acts[:, 1:, :], grads[:, 1:, :]
-        weights = grads.mean(dim=1, keepdim=True)  # channel importance
-        cam = torch.relu((weights * acts).sum(dim=-1)).squeeze(0)  # (n_patches,)
-    finally:
-        h1.remove()
-        h2.remove()
-
-    n_patches = cam.shape[0]
-    side = int(round(n_patches ** 0.5))
-    cam = cam.reshape(side, side).cpu().numpy()
-    cam = (cam - cam.min()) / (cam.ptp() + 1e-8)
-
-    # Upscale to the original image size and build a JET overlay.
-    orig = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    heat = cv2.resize((cam * 255).astype(np.uint8), (orig.shape[1], orig.shape[0]))
-    heat = cv2.applyColorMap(heat, cv2.COLORMAP_JET)
-    overlay = cv2.addWeighted(heat, alpha, orig, 1 - alpha, 0)
-
-    ok, buf = cv2.imencode(".png", overlay)
-    overlay_b64 = base64.b64encode(buf.tobytes()).decode("ascii") if ok else ""
-
+    # Classify first — this is reliable. Grad-CAM is layered on best-effort, so a
+    # hiccup in the heatmap never costs us the prediction (it just omits the overlay).
     pred = classifier.predict(image_path)
-    return {
+    result = {
         "label": pred.label,
         "confidence": pred.confidence,
         "p_hateful": pred.p_hateful,
         "ocr_text": pred.ocr_text,
-        "overlay_png_base64": overlay_b64,
+        "overlay_png_base64": "",
     }
+
+    try:
+        image = Image.open(image_path).convert("RGB")
+        inputs = processor(images=image, return_tensors="pt").to(device)
+
+        # Hook the last vision encoder layer to capture activations + gradients.
+        target_layer = model.vision_model.encoder.layers[-1]
+        activations, gradients = {}, {}
+
+        def fwd_hook(_m, _i, out):
+            activations["value"] = out[0] if isinstance(out, tuple) else out
+
+        def bwd_hook(_m, _gi, go):
+            gradients["value"] = go[0]
+
+        h1 = target_layer.register_forward_hook(fwd_hook)
+        h2 = target_layer.register_full_backward_hook(bwd_hook)
+        try:
+            model.zero_grad()
+            img_emb = model.get_image_features(**inputs)
+            img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
+            # Similarity to the "hateful" prototype is the quantity we explain.
+            hateful_proto = classifier._generic_protos[1:2]  # (1, d)
+            score = (img_emb @ hateful_proto.T).squeeze()
+            score.backward()
+
+            acts = activations["value"].detach()   # (1, seq, dim)
+            grads = gradients["value"].detach()     # (1, seq, dim)
+            # Drop the CLS token (index 0); the rest are the patch tokens.
+            acts, grads = acts[:, 1:, :], grads[:, 1:, :]
+            weights = grads.mean(dim=1, keepdim=True)  # channel importance
+            cam = torch.relu((weights * acts).sum(dim=-1)).squeeze(0)  # (n_patches,)
+        finally:
+            h1.remove()
+            h2.remove()
+
+        side = int(round(cam.shape[0] ** 0.5))
+        cam = cam[: side * side].reshape(side, side).cpu().numpy()
+        cam = (cam - cam.min()) / (float(np.ptp(cam)) + 1e-8)  # np.ptp: numpy 2.0 dropped ndarray.ptp()
+
+        # Upscale to the original image size and build a JET overlay.
+        orig = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        heat = cv2.resize((cam * 255).astype(np.uint8), (orig.shape[1], orig.shape[0]))
+        heat = cv2.applyColorMap(heat, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(heat, alpha, orig, 1 - alpha, 0)
+        ok, buf = cv2.imencode(".png", overlay)
+        if ok:
+            result["overlay_png_base64"] = base64.b64encode(buf.tobytes()).decode("ascii")
+    except Exception as e:  # noqa: BLE001 — never let Grad-CAM sink the classification
+        result["gradcam_error"] = str(e)
+
+    return result
