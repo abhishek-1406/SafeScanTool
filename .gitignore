@@ -18,6 +18,7 @@ venv/
 env/
 .env/
 .venv/
+vendor/          # pip --target dir used for the sandboxed preview server
 
 # Environment variables & API keys — NEVER commit these
 .env
@@ -37,6 +38,8 @@ google_credentials.json
 *.bin
 *.ckpt
 *.safetensors
+*.keras
+models/bert/
 backend/models/*.pkl
 backend/models/*.h5
 backend/models/*.pt

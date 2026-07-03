@@ -1,51 +1,24 @@
-# ─────────────────────────────────────────
-# SafeScan — Hate Speech Detection
-# Python 3.9+
-# Install: pip install -r requirements.txt
-# ─────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# SafeScan — CORE dependencies (pinned)
+# Runs: the Flask web app, the SVM trainer, and the fairness audit.
+# These are the exact versions this project was verified against.
+#   pip install -r requirements.txt
+#
+# For the deep-learning / multimodal features (Bi-LSTM, BERT, CLIP memes,
+# Grad-CAM, SHAP-heavy paths) additionally install requirements-ml.txt.
+# ─────────────────────────────────────────────────────────────
 
-# Core Data & ML
-numpy>=1.24.0
-pandas>=2.0.0
-scikit-learn>=1.3.0
-imbalanced-learn>=0.11.0        # SMOTE for class balancing
+# Data & classical ML
+numpy==2.0.2
+pandas==2.3.3
+scikit-learn==1.6.1
+scipy==1.13.1
+joblib==1.5.3
+nltk==3.9.2
 
-# Deep Learning
-tensorflow>=2.13.0
-torch>=2.0.0
-torchvision>=0.15.0
-
-# NLP & Transformers
-transformers>=4.35.0            # BERT (bert-base-uncased)
-datasets>=2.14.0                # HuggingFace datasets
-nltk>=3.8.0
-gensim>=4.3.0                   # GloVe embedding loading
-
-# Multimodal (CLIP)
-openai-clip>=1.0.0              # openai/clip-vit-base-patch32
-Pillow>=10.0.0
-
-# Explainability
-shap>=0.43.0                    # SHAP for text models
-grad-cam>=1.4.8                 # Grad-CAM for image models
-
-# OCR
-easyocr>=1.7.0
-opencv-python>=4.8.0
-google-cloud-vision>=3.4.0      # Google Cloud Vision API (primary OCR)
-
-# Visualisation & EDA
-matplotlib>=3.7.0
-seaborn>=0.12.0
-wordcloud>=1.9.0
-plotly>=5.17.0
-
-# Backend (Flask API)
-flask>=3.0.0
-flask-cors>=4.0.0
-
-# Utilities
-tqdm>=4.66.0
-joblib>=1.3.0
-python-dotenv>=1.0.0            # For API key management (.env file)
-requests>=2.31.0
+# Web app
+Flask==3.1.3
+flask-cors==6.0.5
+Werkzeug==3.1.8
+Jinja2==3.1.6
+python-dotenv==1.2.1

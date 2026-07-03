@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────────
+# SafeScan — MULTIMODAL / DEEP-LEARNING extras (pinned)
+# Needed for: Bi-LSTM (TensorFlow), BERT (PyTorch/Transformers),
+# CLIP meme pipeline, pytesseract OCR, Grad-CAM, and SHAP.
+# These are large (several GB) and GPU-recommended for BERT/CLIP.
+#   pip install -r requirements-ml.txt
+#
+# System dependency for OCR (install separately, not via pip):
+#   macOS:   brew install tesseract
+#   Ubuntu:  sudo apt-get install -y tesseract-ocr
+# ─────────────────────────────────────────────────────────────
+
+# PyTorch stack (BERT + CLIP)
+torch==2.4.1
+torchvision==0.19.1
+transformers==4.46.3
+datasets==3.1.0
+
+# TensorFlow (Bi-LSTM)
+tensorflow==2.17.1
+
+# Explainability
+shap==0.46.0
+
+# OCR & image processing (CLIP meme pipeline + Grad-CAM overlay)
+pytesseract==0.3.13
+opencv-python==4.10.0.84
+Pillow==10.4.0
