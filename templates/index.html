@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SafeScan — Explainable Hate Speech Detection</title>
+<style>
+  :root {
+    --bg: #0b0d12; --bg2: #0f1117; --card: #171a23; --card2: #1e2230;
+    --border: #262b3a; --text: #e6e8ee; --muted: #9aa3b2;
+    --accent: #6366f1; --accent2: #8b5cf6;
+    --green: #22c55e; --amber: #f59e0b; --red: #ef4444; --blue: #38bdf8;
+    --radius: 14px; --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #1a1f36 0%, var(--bg) 55%) fixed;
+    color: var(--text); line-height: 1.5; min-height: 100vh;
+  }
+  header { padding: 32px 24px 8px; max-width: 1080px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand .logo { font-size: 34px; filter: drop-shadow(0 4px 10px rgba(99,102,241,.5)); }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -.5px; }
+  h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 8px 24px 60px; }
+  .tabs { display: flex; gap: 6px; margin: 22px 0 20px; flex-wrap: wrap;
+          background: var(--card); padding: 6px; border-radius: var(--radius); border: 1px solid var(--border); width: fit-content; }
+  .tab { padding: 10px 18px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600;
+         color: var(--muted); border: none; background: transparent; transition: .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: #fff; background: linear-gradient(90deg, var(--accent), var(--accent2)); box-shadow: var(--shadow); }
+  .panel { display: none; animation: fade .25s ease; }
+  .panel.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+          padding: 22px; box-shadow: var(--shadow); }
+  .card + .card { margin-top: 18px; }
+  textarea { width: 100%; min-height: 130px; resize: vertical; background: var(--bg2); color: var(--text);
+             border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: 15px; font-family: inherit; }
+  textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  button.go { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; border: none;
+              padding: 11px 22px; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
+  button.go:disabled { opacity: .5; cursor: not-allowed; }
+  .chip-sample { background: var(--card2); color: var(--muted); border: 1px solid var(--border);
+                 padding: 7px 12px; border-radius: 20px; font-size: 12.5px; cursor: pointer; }
+  .chip-sample:hover { color: var(--text); border-color: var(--accent); }
+  .badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 30px;
+           font-weight: 700; font-size: 15px; }
+  .badge.normal, .badge.non-hateful { background: rgba(34,197,94,.14); color: var(--green); border: 1px solid rgba(34,197,94,.35); }
+  .badge.offensive { background: rgba(245,158,11,.14); color: var(--amber); border: 1px solid rgba(245,158,11,.35); }
+  .badge.hatespeech, .badge.hateful { background: rgba(239,68,68,.14); color: var(--red); border: 1px solid rgba(239,68,68,.35); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .prob { margin-top: 6px; }
+  .prob .label-row { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 3px; }
+  .bar { height: 8px; background: var(--bg2); border-radius: 6px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .highlight { line-height: 2.1; font-size: 15.5px; margin-top: 8px; }
+  .highlight .tok { padding: 2px 4px; border-radius: 5px; }
+  .words { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .word { padding: 6px 11px; border-radius: 8px; font-size: 13px; font-family: ui-monospace, monospace;
+          border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .best { color: var(--green); font-weight: 700; }
+  .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 34px; text-align: center; cursor: pointer;
+          background: var(--bg2); transition: .15s; }
+  .drop:hover, .drop.drag { border-color: var(--accent); background: #12151f; }
+  .imgrow { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  .imgrow img { width: 100%; border-radius: 10px; border: 1px solid var(--border); }
+  .imgcap { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+  .kpi { font-size: 40px; font-weight: 800; letter-spacing: -1px;
+         background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text;
+         background-clip: text; -webkit-text-fill-color: transparent; }
+  .spinner { width: 18px; height: 18px; border: 3px solid rgba(255,255,255,.3); border-top-color: #fff;
+             border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .note { background: rgba(56,189,248,.08); border: 1px solid rgba(56,189,248,.25); color: #bae6fd;
+          padding: 10px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; }
+  .err { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); color: #fecaca;
+         padding: 10px 14px; border-radius: 10px; font-size: 13.5px; }
+  @media (max-width: 640px) { .imgrow { grid-template-columns: 1fr; } .kpi { font-size: 32px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">🛡️</div>
+    <div>
+      <h1>Safe<span>Scan</span></h1>
+      <div class="sub">Explainable multimodal hate-speech detection · text (SHAP) · memes (Grad-CAM) · fairness audit</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="text">📝 Text</button>
+    <button class="tab" data-tab="meme">🖼️ Meme</button>
+    <button class="tab" data-tab="compare">📊 Model comparison</button>
+    <button class="tab" data-tab="fairness">⚖️ Fairness audit</button>
+  </div>
+
+  <!-- TAB 1 — TEXT -->
+  <section class="panel active" id="tab-text">
+    <div class="card">
+      <label class="muted">Enter a post, tweet, or comment to classify (Normal / Offensive / Hate speech):</label>
+      <textarea id="textInput" placeholder="Type or paste text here…"></textarea>
+      <div class="row">
+        <button class="go" id="textBtn">Analyze text</button>
+        <span class="muted">Samples:</span>
+        <span class="chip-sample" data-s="Have a wonderful day everyone, stay safe!">neutral</span>
+        <span class="chip-sample" data-s="you are such an idiot and a total loser">insult</span>
+      </div>
+    </div>
+    <div class="card" id="textResult" style="display:none"></div>
+  </section>
+
+  <!-- TAB 2 — MEME -->
+  <section class="panel" id="tab-meme">
+    <div class="card">
+      <div class="drop" id="drop">
+        <div style="font-size:30px">📤</div>
+        <div style="margin-top:8px;font-weight:600">Click or drop a meme image</div>
+        <div class="muted">PNG / JPG / WEBP — OCR text is extracted, then classified with CLIP</div>
+        <input type="file" id="fileInput" accept="image/*" hidden />
+      </div>
+      <div class="row"><button class="go" id="memeBtn" disabled>Analyze meme</button>
+        <span class="muted" id="fileName"></span></div>
+      <div class="note">The meme pipeline requires the optional multimodal extras (torch, transformers,
+        pytesseract). If they aren't installed you'll get a clear message here.</div>
+    </div>
+    <div class="card" id="memeResult" style="display:none"></div>
+  </section>
+
+  <!-- TAB 3 — MODEL COMPARISON -->
+  <section class="panel" id="tab-compare">
+    <div class="card">
+      <h3 style="margin-top:0">Benchmark — test-set metrics</h3>
+      <div class="muted">Numbers are read live from <code>models/metrics.json</code>, produced by
+        <code>python -m src.run_training</code>. Empty until you train.</div>
+      <div id="compareBody" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <!-- TAB 4 — FAIRNESS -->
+  <section class="panel" id="tab-fairness">
+    <div class="card">
+      <h3 style="margin-top:0">Gender-bias counterfactual audit</h3>
+      <div class="muted">Swap gendered terms (he↔she, man↔woman, …) in real posts and measure how often
+        the prediction flips. Lower is fairer. From <code>models/fairness.json</code>.</div>
+      <div id="fairnessBody" style="margin-top:14px"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = "";
+
+// ---- tabs ----
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  $("#tab-" + t.dataset.tab).classList.add("active");
+  if (t.dataset.tab === "compare") loadMetrics();
+  if (t.dataset.tab === "fairness") loadFairness();
+});
+
+const pct = x => (x * 100).toFixed(1) + "%";
+const cls = l => l.replace(/[^a-z-]/gi, "").toLowerCase();
+
+// ---- word highlight colour: red toward predicted class, blue against ----
+function wcolor(w, max) {
+  const a = Math.min(Math.abs(w) / (max || 1), 1);
+  return w >= 0 ? `rgba(239,68,68,${0.18 + a*0.55})` : `rgba(56,189,248,${0.18 + a*0.5})`;
+}
+
+// ================= TEXT =================
+document.querySelectorAll(".chip-sample").forEach(c => c.onclick = () => { $("#textInput").value = c.dataset.s; });
+$("#textBtn").onclick = analyzeText;
+async function analyzeText() {
+  const text = $("#textInput").value.trim();
+  if (!text) return;
+  const btn = $("#textBtn"), box = $("#textResult");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Analyzing';
+  box.style.display = "block"; box.innerHTML = '<span class="muted">Running SVM + SHAP attribution…</span>';
+  try {
+    const r = await fetch(api + "/analyze/text", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text})
+    });
+    const d = await r.json();
+    if (!r.ok) { box.innerHTML = `<div class="err">${d.error || "Error"}</div>`; return; }
+    renderText(d, text);
+  } catch (e) { box.innerHTML = `<div class="err">${e}</div>`; }
+  finally { btn.disabled = false; btn.textContent = "Analyze text"; }
+}
+function renderText(d, text) {
+  const maxW = Math.max(...d.words.map(w => Math.abs(w.weight)), 0.0001);
+  const wmap = {}; d.words.forEach(w => wmap[w.word] = w.weight);
+  const hl = text.split(/(\s+)/).map(tok => {
+    const key = tok.toLowerCase().replace(/[^a-z]/g, "");
+    if (wmap[key] !== undefined)
+      return `<span class="tok" style="background:${wcolor(wmap[key], maxW)}">${tok}</span>`;
+    return tok;
+  }).join("");
+  const probs = Object.entries(d.probabilities)
+    .map(([k, v]) => `<div class="prob"><div class="label-row"><span>${k}</span><span>${pct(v)}</span></div>
+      <div class="bar"><span style="width:${v*100}%"></span></div></div>`).join("");
+  const chips = d.words.map(w =>
+    `<span class="word" style="background:${wcolor(w.weight, maxW)}">${w.word} <b>${w.weight>=0?"+":""}${w.weight}</b></span>`
+  ).join("");
+  $("#textResult").innerHTML = `
+    <div class="row" style="justify-content:space-between">
+      <span class="badge ${cls(d.label)}">${d.label.toUpperCase()} · ${pct(d.confidence)} confidence</span>
+    </div>
+    <div style="margin-top:16px">${probs}</div>
+    <h4 style="margin:20px 0 4px">Word-level explanation (SHAP-style)</h4>
+    <div class="muted">Red = pushes toward the prediction · blue = pushes away.</div>
+    <div class="highlight">${hl}</div>
+    <div class="words">${chips || '<span class="muted">No in-vocabulary tokens to attribute.</span>'}</div>`;
+}
+
+// ================= MEME =================
+const drop = $("#drop"), fileInput = $("#fileInput");
+let memeFile = null;
+drop.onclick = () => fileInput.click();
+["dragover","dragenter"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("drag"); }));
+["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("drag"); }));
+drop.addEventListener("drop", ev => { if (ev.dataTransfer.files[0]) setFile(ev.dataTransfer.files[0]); });
+fileInput.onchange = () => { if (fileInput.files[0]) setFile(fileInput.files[0]); };
+function setFile(f) { memeFile = f; $("#fileName").textContent = f.name; $("#memeBtn").disabled = false; }
+$("#memeBtn").onclick = analyzeMeme;
+async function analyzeMeme() {
+  if (!memeFile) return;
+  const btn = $("#memeBtn"), box = $("#memeResult");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Analyzing';
+  box.style.display = "block"; box.innerHTML = '<span class="muted">Extracting OCR text and running CLIP + Grad-CAM…</span>';
+  const fd = new FormData(); fd.append("image", memeFile);
+  try {
+    const r = await fetch(api + "/analyze/meme", { method: "POST", body: fd });
+    const d = await r.json();
+    if (!r.ok) { box.innerHTML = `<div class="err">${d.error || "Error"}</div>`; return; }
+    const orig = URL.createObjectURL(memeFile);
+    box.innerHTML = `
+      <span class="badge ${cls(d.label)}">${d.label.toUpperCase()} · ${pct(d.confidence)} confidence</span>
+      <div class="muted" style="margin-top:10px">P(hateful) = ${pct(d.p_hateful)}</div>
+      <div class="muted" style="margin-top:6px"><b>OCR text:</b> ${d.ocr_text ? d.ocr_text : "<i>none detected</i>"}</div>
+      <div class="imgrow">
+        <div><img src="${orig}"><div class="imgcap">Original</div></div>
+        <div><img src="data:image/png;base64,${d.overlay_png_base64}"><div class="imgcap">Grad-CAM (regions driving “hateful”)</div></div>
+      </div>`;
+  } catch (e) { box.innerHTML = `<div class="err">${e}</div>`; }
+  finally { btn.disabled = false; btn.textContent = "Analyze meme"; }
+}
+
+// ================= MODEL COMPARISON =================
+async function loadMetrics() {
+  const box = $("#compareBody");
+  box.innerHTML = '<span class="muted">Loading…</span>';
+  const r = await fetch(api + "/api/metrics");
+  if (!r.ok) { box.innerHTML = `<div class="note">${(await r.json()).error}</div>`; return; }
+  const data = await r.json();
+  const rows = Object.entries(data).map(([name, e]) => ({ name, m: e.metrics }));
+  const bestF1 = Math.max(...rows.map(r => r.m.macro_f1));
+  box.innerHTML = `<table><thead><tr>
+      <th>Model</th><th class="num">Accuracy</th><th class="num">Macro F1</th>
+      <th class="num">Weighted F1</th><th class="num">Macro Prec.</th><th class="num">Macro Rec.</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td>${r.name}</td>
+      <td class="num">${pct(r.m.accuracy)}</td>
+      <td class="num ${r.m.macro_f1===bestF1?'best':''}">${pct(r.m.macro_f1)}</td>
+      <td class="num">${pct(r.m.weighted_f1)}</td>
+      <td class="num">${pct(r.m.macro_precision)}</td>
+      <td class="num">${pct(r.m.macro_recall)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// ================= FAIRNESS =================
+async function loadFairness() {
+  const box = $("#fairnessBody");
+  box.innerHTML = '<span class="muted">Loading…</span>';
+  const r = await fetch(api + "/api/fairness");
+  if (!r.ok) { box.innerHTML = `<div class="note">${(await r.json()).error}</div>`; return; }
+  const d = await r.json();
+  const perClass = Object.entries(d.per_class).map(([k, v]) => `<tr>
+      <td><span class="badge ${cls(k)}" style="padding:3px 10px;font-size:12px">${k}</span></td>
+      <td class="num">${v.n}</td><td class="num">${v.flips}</td>
+      <td class="num" style="color:${v.flip_rate>0.1?'var(--red)':'var(--green)'}">${pct(v.flip_rate)}</td></tr>`).join("");
+  const ex = (d.examples||[]).map(e => `<tr>
+      <td>${e.original}</td><td>${e.counterfactual}</td>
+      <td><span class="badge ${cls(e.original_label)}" style="padding:2px 8px;font-size:11px">${e.original_label}</span></td>
+      <td><span class="badge ${cls(e.counterfactual_label)}" style="padding:2px 8px;font-size:11px">${e.counterfactual_label}</span></td></tr>`).join("");
+  box.innerHTML = `
+    <div style="display:flex;gap:30px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <div><div class="kpi">${pct(d.overall_flip_rate)}</div><div class="muted">overall flip rate · ${d.n_pairs} pairs</div></div>
+      <div class="muted" style="max-width:460px">Method: ${d.method}. A robust model keeps the same label after a
+        gender swap, so flip rate approximates label sensitivity to gender.</div>
+    </div>
+    <table style="margin-top:10px"><thead><tr><th>Class</th><th class="num">N</th><th class="num">Flips</th>
+      <th class="num">Flip rate</th></tr></thead><tbody>${perClass}</tbody></table>
+    ${ex ? `<h4 style="margin:22px 0 6px">Example flips (gender swap changed the label)</h4>
+      <table><thead><tr><th>Original</th><th>Counterfactual</th><th>Orig</th><th>CF</th></tr></thead>
+      <tbody>${ex}</tbody></table>` : ''}`;
+}
+</script>
+</body>
+</html>

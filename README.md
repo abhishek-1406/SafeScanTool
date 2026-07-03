@@ -1,164 +1,156 @@
 # 🛡️ SafeScan — Explainable Multimodal Hate Speech Detection
 
-> MSc Data Science Group Research Project · University of Leicester · August 2025  
-> Supervisor: Dr. Hammad Afzal · Module: MA7443
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.6-F7931E?logo=scikitlearn&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.4-EE4C2C?logo=pytorch&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.17-FF6F00?logo=tensorflow&logoColor=white)
+![HuggingFace](https://img.shields.io/badge/🤗%20Transformers-4.46-FFD21E)
+![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
+![License](https://img.shields.io/badge/License-Academic-blue)
+
+SafeScan classifies **text** (Normal / Offensive / Hate speech) and **memes**
+(Hateful / Non-hateful), and — crucially — *explains itself*: SHAP-style
+word-level attributions for text, Grad-CAM heatmaps for images, plus a
+counterfactual **fairness audit** that measures gender bias. Three text models
+(SVM, Bi-LSTM, BERT) and a zero-shot CLIP meme pipeline are trained through one
+reproducible command and served through a single-page Flask web app.
+
+> MSc Data Science Research Project · University of Leicester · Module MA7443
+> Supervisor: Dr. Hammad Afzal
 
 ---
 
-## 📌 Overview
+## 🖼️ Screenshot
 
-SafeScan is an end-to-end hate speech detection system capable of classifying both **text** (tweets and social media posts) and **multimodal content** (memes). The system goes beyond accuracy — it integrates **explainability** (SHAP & Grad-CAM) and a **fairness audit** to address the ethical dimension of automated content moderation.
-
-The project was built as part of the MSc Data Science Research Project at the University of Leicester and benchmarks four models across two modalities, culminating in an interactive web application.
-
----
-
-## 🔍 Problem Statement
-
-Manual content moderation at scale is unsustainable. Hate speech on social media contributes to psychological harm, civil discourse erosion, and real-world violence. Memes pose a unique challenge — combining text and images in ways that are individually innocuous but collectively harmful. This project addresses that gap with a multi-model, multi-modal approach.
+![SafeScan UI](docs/screenshot.png)
+<!-- Placeholder — run the app (see below), then drop a screenshot at docs/screenshot.png -->
 
 ---
 
-## 🧠 Models Implemented
+## 🚀 Quick start (3 commands)
 
-### Text-Based Classification (3-class: Normal / Offensive / Hate Speech)
+```bash
+pip install -r requirements.txt        # 1. core deps (Flask + SVM + fairness)
+python -m src.run_training             # 2. train the SVM & write metrics/fairness
+python app.py                          # 3. serve the app  →  http://localhost:5000
+```
 
-| Model | Accuracy | Macro F1 |
-|---|---|---|
-| SVM (TF-IDF + Linear SVC) | 0.75 | 0.71 |
-| Bi-LSTM (GloVe embeddings) | 0.75 | 0.72 |
-| **BERT (fine-tuned bert-base-uncased)** | **0.81** | **0.81** |
+That's the lightweight path: it trains the **SVM** and powers all four UI tabs
+(text analysis, model comparison, fairness audit; the meme tab shows a friendly
+"install extras" message).
 
-### Multimodal Classification (Binary: Hateful / Non-Hateful)
+To enable **Bi-LSTM, BERT, and the CLIP meme pipeline** (larger, GPU-recommended):
 
-| Model | Accuracy | F1 Score |
-|---|---|---|
-| CLIP + OCR (Google Vision API) | 0.73 | 0.57 |
+```bash
+pip install -r requirements-ml.txt     # torch, tensorflow, transformers, pytesseract…
+# macOS: brew install tesseract   |   Ubuntu: sudo apt-get install -y tesseract-ocr
+python -m src.run_training             # now trains all three text models
+```
+
+> **macOS note:** port 5000 is often taken by the AirPlay Receiver. Either disable
+> it (System Settings → General → AirDrop & Handoff) or run `PORT=5001 python app.py`.
 
 ---
 
-## 📁 Repository Structure
+## 🗂️ Project structure
 
 ```
-safescan/
-│
-├── data/
-│   └── README.md                  # Dataset sources and access instructions
-│
-├── notebooks/
-│   ├── 01_EDA.ipynb               # Exploratory Data Analysis
-│   ├── 02_SVM.ipynb               # SVM baseline + fairness audit
-│   ├── 03_BiLSTM.ipynb            # Bi-LSTM with GloVe embeddings
-│   ├── 04_BERT.ipynb              # BERT fine-tuning + occlusion explainability
-│   └── 05_CLIP.ipynb              # CLIP multimodal model + Grad-CAM
-│
-├── backend/
-│   ├── app.py                     # Flask API (model serving + CORS)
-│   ├── models/                    # Serialised model files (.pkl, .h5, .pt)
-│   └── utils/
-│       ├── preprocessing.py       # Text cleaning, tokenisation, OCR
-│       ├── explainability.py      # SHAP and Grad-CAM logic
-│       └── fairness.py            # Counterfactual testing + bias metrics
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/            # React components (TextInput, ImageUpload, Results)
-│   │   └── pages/                 # Next.js pages
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── report/
-│   └── HateSpeech_Detection_Final_Report.pdf   # Full academic report
-│
-├── requirements.txt
-└── README.md
+SafeScanTool/
+├── app.py                     # Flask app — serves UI + /analyze/text, /analyze/meme, APIs
+├── templates/index.html       # Single-page frontend (4 tabs, no build step)
+├── src/
+│   ├── data_utils.py          # Shared load / clean / 80-10-10 split / class weights
+│   ├── eval_utils.py          # Metrics + models/metrics.json registry
+│   ├── train_svm.py           # SVM (TF-IDF + LinearSVC)      — VERIFIED, runs on CPU
+│   ├── train_bilstm.py        # Bi-LSTM (GloVe, early stopping, checkpointing)
+│   ├── train_bert.py          # BERT fine-tune (weighted loss, early stopping)
+│   ├── run_training.py        # Train all three sequentially
+│   ├── clip_meme_pipeline.py  # pytesseract OCR + CLIP zero-shot prompt ensembles
+│   ├── explainability.py      # SHAP-style text attributions + CLIP Grad-CAM
+│   ├── fairness.py            # Counterfactual gender-bias audit
+│   └── config.py             # Env-driven config (no hard-coded secrets)
+├── Data/updated_hatexplain_data.csv   # 44,931 labelled posts (3-class)
+├── notebooks/                 # Original research notebooks (secrets scrubbed)
+├── models/                    # Trained artifacts + metrics.json / fairness.json (git-ignored)
+├── requirements.txt           # Core (pinned)
+├── requirements-ml.txt        # Deep-learning / multimodal extras (pinned)
+├── Dockerfile                 # Container build (core by default)
+└── .env.example               # Configuration template
 ```
+
+---
+
+## 🧠 Models & results
+
+Text is a 3-class problem on a merged **44,931-post** corpus
+(offensive 54.9% / normal 28.7% / hate speech 16.4% — imbalanced, so every model
+uses **balanced class weights**). All models share an identical stratified
+**80/10/10** train/val/test split.
+
+| Model | Accuracy | Macro F1 | Status |
+|---|---|---|---|
+| **SVM** (TF-IDF word+char, LinearSVC) | **0.77** | **0.74** | ✅ reproduced by this repo |
+| Bi-LSTM (GloVe, early stopping) | — | — | run `run_training` (extras) |
+| BERT (bert-base-uncased, weighted loss) | — | — | run `run_training` (extras) |
+| CLIP + OCR (zero-shot, memes) | — | — | run the meme pipeline |
+
+> The comparison table in the web app reads `models/metrics.json` **live** — it
+> only ever shows numbers that training actually produced, never hard-coded ones.
+> The SVM row above is measured on the held-out test split (seed 42).
+
+**Fairness (measured on the SVM):** a counterfactual gender-swap audit over 3,000
+real posts gives an overall **label flip-rate of ~4.8%** (normal 6.9%,
+offensive 2.9%, hate speech 6.8%) — i.e. how often a prediction changes when only
+gendered terms are swapped. Regenerate with `python -m src.fairness`.
+
+---
+
+## 🔬 What each piece does
+
+- **Text analysis** (`/analyze/text`) → predicted label, class probabilities, and
+  signed word-level attributions. Because LinearSVC is linear over TF-IDF, each
+  token's contribution is computed exactly (`coef × tf-idf`) — the SHAP value of a
+  linear model, with no sampling.
+- **Meme analysis** (`/analyze/meme`) → pytesseract extracts the caption, CLIP
+  scores the image against **engineered prompt ensembles** (many "hateful" vs
+  "non-hateful" templates, averaged) plus caption-aware prompts, and Grad-CAM
+  overlays the image regions driving the "hateful" score.
+- **Fairness audit** → counterfactual gender-term substitution + flip-rate.
+
+---
+
+## ⚙️ Tech stack
+
+**ML/NLP:** scikit-learn · TensorFlow · PyTorch · HuggingFace Transformers · CLIP
+`openai/clip-vit-base-patch32` · GloVe
+**Explainability & fairness:** linear SHAP attributions · Grad-CAM · counterfactual testing
+**OCR:** pytesseract (local, no API keys)
+**App:** Flask · vanilla-JS single-page UI
 
 ---
 
 ## 📊 Datasets
 
-| Dataset | Type | Size | Source |
-|---|---|---|---|
-| HateXplain | Text (3-class) | ~10,000 posts | [GitHub](https://github.com/hate-alert/HateXplain) |
-| Hate Speech & Offensive Tweets | Text (3-class) | ~25,000 tweets | [GitHub](https://github.com/t-davidson/hate-speech-and-offensive-language) |
-| Merged Corpus (combined) | Text | 44,931 instances | Derived |
-| Facebook Hateful Memes | Image + Text | 10,000+ memes | [Meta AI](https://ai.meta.com/tools/hatefulmemes/) |
-
-> ⚠️ **Note:** The Facebook Hateful Memes dataset requires registration via Meta AI. Raw data files are not included in this repository. See `data/README.md` for access and setup instructions.
+The bundled `Data/updated_hatexplain_data.csv` is the merged text corpus. The
+Facebook Hateful Memes images require registration with Meta AI and are **not**
+included — see [`Data/README.md`](Data/README.md).
 
 ---
 
-## ⚙️ Tech Stack
+## 🔐 Security note
 
-**ML / NLP**
-- Python, scikit-learn, TensorFlow, PyTorch
-- HuggingFace Transformers (`bert-base-uncased`)
-- OpenAI CLIP (`openai/clip-vit-base-patch32`)
-- GloVe Embeddings (Stanford NLP)
-
-**Explainability & Fairness**
-- SHAP (SHapley Additive Explanations)
-- Grad-CAM (Gradient-weighted Class Activation Mapping)
-- Counterfactual pronoun-swap testing
-- SMOTE for class imbalance mitigation
-
-**OCR & APIs**
-- Google Cloud Vision API (primary OCR)
-- EasyOCR + OpenCV (fallback)
-- Clarifai API (hate symbol detection)
-
-**Deployment**
-- Flask (REST API backend)
-- React + Next.js + TypeScript (frontend)
-- Tailwind CSS, Plotly.js, Axios
+Earlier notebook versions contained hard-coded API keys; these have been removed
+from the working tree and must be treated as **compromised/rotated**. All runtime
+configuration now flows through `.env` (see `.env.example`), and `.env` is
+git-ignored. The default meme pipeline is fully local (pytesseract) and needs no keys.
 
 ---
 
-## 🔬 Key Findings
+## ⚠️ Limitations
 
-- **BERT significantly outperforms** both traditional and recurrent models (Macro F1: 0.81 vs 0.71/0.72), confirming the superiority of contextual transformer representations for nuanced hate speech detection.
-- **SVM is a strong baseline** — competitive with Bi-LSTM despite being far simpler and more computationally efficient.
-- **Bi-LSTM suffered from overfitting** — training accuracy exceeded 90% while validation plateaued at ~75%, illustrating the performance-complexity paradox.
-- **CLIP proves multimodal reasoning is essential** — 73% accuracy on the Hateful Memes benchmark (which is specifically designed to defeat unimodal systems).
-- **All text models exhibit measurable gender bias** via counterfactual testing (pronoun swapping). Applying SMOTE-based rebalancing partially mitigated this, with a minor accuracy trade-off (F1: 0.72 → 0.71).
-- **SHAP and Grad-CAM** provide actionable transparency — revealing which tokens or image regions drive predictions, and exposing spurious correlations.
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-```
-Python 3.9+
-Node.js 18+
-```
-
-### Backend Setup
-```bash
-git clone https://github.com/your-username/safescan.git
-cd safescan
-pip install -r requirements.txt
-cd backend
-python app.py
-```
-
-### Frontend Setup
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The app will run at `http://localhost:3000`, connecting to the Flask API at `http://localhost:5000`.
-
-> **Note:** Large model files (BERT, CLIP) are not included in this repo due to size. Download instructions are in `backend/models/README.md`.
-
----
-
-## 📖 Report
-
-The full academic report covering methodology, results, fairness analysis, and deployment is available in the `/report` folder.
+Automated hate-speech detection is imperfect and context-dependent. These models
+carry dataset biases (documented by the fairness audit), can misfire on reclaimed
+language, irony, and dialect, and should support — not replace — human moderation.
 
 ---
 
@@ -170,11 +162,9 @@ The full academic report covering methodology, results, fairness analysis, and d
 | Abhishek Kumar Pal | akp33@student.le.ac.uk |
 | Sahil Dinesh Padwal | sdp20@student.le.ac.uk |
 
-**Supervisor:** Dr. Hammad Afzal  
-**School of Computing and Mathematical Sciences, University of Leicester**
-
----
+**Supervisor:** Dr. Hammad Afzal · School of Computing and Mathematical Sciences,
+University of Leicester
 
 ## 📄 License
 
-This project is for academic purposes. Please cite appropriately if building upon this work.
+For academic purposes. Please cite appropriately if building upon this work.
