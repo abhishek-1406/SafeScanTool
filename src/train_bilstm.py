@@ -92,6 +92,11 @@ def build_model(num_words: int, embedding_matrix: np.ndarray | None):
 
 def train(data_path=None, glove_path: str | None = None, epochs: int = 40,
           batch_size: int = 64, seed: int = 42) -> dict:
+    # TF 2.16+ defaults to Keras 3, which dropped the text-preprocessing APIs this
+    # model uses (Tokenizer, pad_sequences). Requesting the Keras-2 backend (needs
+    # the ``tf-keras`` package, in requirements-ml.txt) makes it run everywhere.
+    # Must be set BEFORE tensorflow is imported.
+    os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
     import tensorflow as tf
     from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
     from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -152,7 +157,7 @@ def train(data_path=None, glove_path: str | None = None, epochs: int = 40,
     model.save(MODEL_PATH)
     joblib.dump(tokenizer, TOKENIZER_PATH)
     update_registry(
-        "Bi-LSTM (GloVe)",
+        f"Bi-LSTM ({'GloVe' if embedding_matrix is not None else 'trainable emb'})",
         metrics,
         extra={"used_glove": embedding_matrix is not None,
                "train_seconds": round(time.time() - t0, 1),

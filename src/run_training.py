@@ -82,6 +82,17 @@ def main():
     if results:
         print(f"Metrics written to: {REGISTRY_PATH}")
 
+    # Generate the fairness audit too (it uses the SVM), so a single run_training
+    # call leaves every web-app tab populated. Best-effort — needs a trained SVM.
+    try:
+        from .fairness import run_audit
+        res = run_audit()
+        print(f"Fairness audit: overall flip-rate {res['overall_flip_rate']:.2%}")
+    except FileNotFoundError:
+        print("Fairness audit skipped (no SVM model). Run after training the SVM.")
+    except Exception as e:  # noqa: BLE001
+        print(f"Fairness audit skipped: {e}")
+
 
 if __name__ == "__main__":
     main()

@@ -90,20 +90,24 @@ SafeScanTool/
 ├── src/
 │   ├── data_utils.py          # Shared load / clean / 80-10-10 split / class weights
 │   ├── eval_utils.py          # Metrics + models/metrics.json registry
-│   ├── train_svm.py           # SVM (TF-IDF + LinearSVC)      — VERIFIED, runs on CPU
-│   ├── train_bilstm.py        # Bi-LSTM (GloVe, early stopping, checkpointing)
+│   ├── train_svm.py           # SVM (TF-IDF word+char + LinearSVC)
+│   ├── train_bilstm.py        # Bi-LSTM (GloVe optional, early stopping, checkpointing)
 │   ├── train_bert.py          # BERT fine-tune (weighted loss, early stopping)
 │   ├── run_training.py        # Train all three sequentially
 │   ├── clip_meme_pipeline.py  # pytesseract OCR + CLIP zero-shot prompt ensembles
-│   ├── explainability.py      # SHAP-style text attributions + CLIP Grad-CAM
+│   ├── explainability.py      # SVM SHAP + BERT occlusion + CLIP Grad-CAM
 │   ├── fairness.py            # Counterfactual gender-bias audit
 │   └── config.py             # Env-driven config (no hard-coded secrets)
+├── scripts/upload_models.py   # Push trained models/ to a Hugging Face model repo
+├── docs/
+│   ├── TRAINING.md            # Train BERT / Bi-LSTM free on a GPU (Colab/Kaggle)
+│   └── DEPLOYMENT.md          # HF Spaces architecture + how to deploy your own
 ├── Data/updated_hatexplain_data.csv   # 44,931 labelled posts (3-class)
 ├── notebooks/                 # Original research notebooks (secrets scrubbed)
 ├── models/                    # Trained artifacts + metrics.json / fairness.json (git-ignored)
 ├── requirements.txt           # Core (pinned)
 ├── requirements-ml.txt        # Deep-learning / multimodal extras (pinned)
-├── Dockerfile                 # Container build (core by default)
+├── Dockerfile                 # Container build (pulls trained models from HF at build)
 └── .env.example               # Configuration template
 ```
 
@@ -116,16 +120,20 @@ Text is a 3-class problem on a merged **44,931-post** corpus
 uses **balanced class weights**). All models share an identical stratified
 **80/10/10** train/val/test split.
 
-| Model | Accuracy | Macro F1 | Status |
-|---|---|---|---|
-| **SVM** (TF-IDF word+char, LinearSVC) | **0.77** | **0.74** | ✅ reproduced by this repo |
-| Bi-LSTM (GloVe, early stopping) | — | — | run `run_training` (extras) |
-| BERT (bert-base-uncased, weighted loss) | — | — | run `run_training` (extras) |
-| CLIP + OCR (zero-shot, memes) | — | — | run the meme pipeline |
+| Model | Accuracy | Macro F1 | Weighted F1 | Serving |
+|---|---|---|---|---|
+| **BERT** (bert-base-uncased, weighted loss) | **0.80** | **0.77** | **0.80** | live (text) |
+| Bi-LSTM (trainable emb, early stopping) | 0.77 | 0.75 | 0.78 | comparison only¹ |
+| SVM (TF-IDF word+char, LinearSVC) | 0.77 | 0.75 | 0.78 | live (text) |
+| CLIP + OCR (zero-shot, memes) | — | — | — | live (memes)² |
 
-> The comparison table in the web app reads `models/metrics.json` **live** — it
-> only ever shows numbers that training actually produced, never hard-coded ones.
-> The SVM row above is measured on the held-out test split (seed 42).
+> ¹ Bi-LSTM's metrics show in the comparison tab but it isn't served for inference —
+> that would bundle TensorFlow into the container. BERT is the stronger text model.
+> ² CLIP is zero-shot (binary hateful/non-hateful) — no supervised accuracy is reported.
+>
+> All numbers are measured on the held-out **test** split (seed 42). The web app's
+> comparison tab reads `models/metrics.json` **live**, so it only ever shows what
+> training actually produced — never hard-coded values.
 
 **Fairness (measured on the SVM):** a counterfactual gender-swap audit over 3,000
 real posts gives an overall **label flip-rate of ~4.8%** (normal 6.9%,
@@ -136,10 +144,12 @@ gendered terms are swapped. Regenerate with `python -m src.fairness`.
 
 ## 🔬 What each piece does
 
-- **Text analysis** (`/analyze/text`) → predicted label, class probabilities, and
-  signed word-level attributions. Because LinearSVC is linear over TF-IDF, each
-  token's contribution is computed exactly (`coef × tf-idf`) — the SHAP value of a
-  linear model, with no sampling.
+- **Text analysis** (`/analyze/text`, `model` = `svm` | `bert`) → predicted label,
+  class probabilities, and signed word-level attributions.
+  - **SVM** — linear over TF-IDF, so each token's contribution is computed exactly
+    (`coef × tf-idf`): the SHAP value of a linear model, with no sampling. Fast.
+  - **BERT** — non-linear, so words are attributed by **occlusion** (mask each word,
+    measure the drop in the predicted-class probability). Most accurate model.
 - **Meme analysis** (`/analyze/meme`) → pytesseract extracts the caption, CLIP
   scores the image against **engineered prompt ensembles** (many "hateful" vs
   "non-hateful" templates, averaged) plus caption-aware prompts, and Grad-CAM
@@ -158,6 +168,18 @@ gendered terms are swapped. Regenerate with `python -m src.fairness`.
 
 ---
 
+## 🚢 Deployment
+
+The live demo is a **Docker Space** on Hugging Face (free `cpu-basic`). The `Dockerfile`
+downloads the trained weights (SVM + BERT + `metrics.json`) from a separate **HF model
+repo** at build time — so code (GitHub) and model artifacts version independently, and
+nothing large is committed to git.
+
+Full details — build flow, deploying your own, and refreshing models on a running
+Space — are in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+
+---
+
 ## 📊 Datasets
 
 The bundled `Data/updated_hatexplain_data.csv` is the merged text corpus. The
@@ -168,10 +190,11 @@ included — see [`Data/README.md`](Data/README.md).
 
 ## 🔐 Security note
 
-Earlier notebook versions contained hard-coded API keys; these have been removed
-from the working tree and must be treated as **compromised/rotated**. All runtime
-configuration now flows through `.env` (see `.env.example`), and `.env` is
-git-ignored. The default meme pipeline is fully local (pytesseract) and needs no keys.
+Earlier notebook versions contained hard-coded API keys. These were removed **and
+scrubbed from the full git history** (`git filter-repo`, force-pushed); the exposed
+keys must still be treated as **compromised and rotated**. All runtime configuration
+now flows through `.env` (see `.env.example`), which is git-ignored. The default meme
+pipeline is fully local (pytesseract) and needs no keys.
 
 ---
 

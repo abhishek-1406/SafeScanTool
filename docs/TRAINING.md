@@ -22,8 +22,9 @@ trains **BERT** and **Bi-LSTM** on a free GPU and uploads them (plus the merged
 %cd SafeScanTool
 # Colab/Kaggle already ship torch, tensorflow, scikit-learn, pandas — adding the
 # pinned requirements-ml.txt fights their versions (ResolutionImpossible), so only
-# install the few extras the training actually needs:
-!pip install -q -U transformers datasets accelerate
+# install the few extras the training actually needs. tf-keras gives the Bi-LSTM
+# the Keras-2 backend it needs (Colab's default Keras 3 removed the APIs it uses):
+!pip install -q -U transformers datasets accelerate tf-keras
 ```
 > On your **own machine** (not Colab), use the pinned set instead:
 > `pip install -r requirements.txt -r requirements-ml.txt`.
@@ -45,12 +46,20 @@ os.environ["HF_TOKEN"] = UserSecretsClient().get_secret("HF_TOKEN")
 ```
 This creates (if needed) and fills `huggingface.co/casanovaabhishek14/safescan-models`.
 
-## 3. Tell me the repo id
-Once uploaded, I'll:
-- switch the Space's `Dockerfile` to **download** the trained models at build (instead
-  of retraining the SVM in the container), so the **Model comparison** tab shows real
-  BERT / Bi-LSTM / SVM numbers, and
-- add a **model selector** to the text tab so you can run inference with **BERT** live.
+## 3. Refresh the live Space
+The deployed Space already pulls this model repo at build time (see [`Dockerfile`](../Dockerfile))
+and exposes a SVM/BERT selector + a live comparison table. To make it pick up the
+**newly uploaded** models, trigger a factory rebuild (the download is a cached layer):
+
+- **UI:** Space → **Settings → Factory rebuild**, or
+- **API:**
+  ```bash
+  curl -X POST -H "Authorization: Bearer $HF_TOKEN" \
+    "https://huggingface.co/api/spaces/casanovaabhishek14/SafeScan/restart?factory=true"
+  ```
+
+After the rebuild, `/api/metrics` and the **Model comparison** tab show all trained models.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full deployment architecture.
 
 ---
 

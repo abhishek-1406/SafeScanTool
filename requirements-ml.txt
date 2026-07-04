@@ -16,8 +16,10 @@ torchvision==0.19.1
 transformers==4.46.3
 datasets==3.1.0
 
-# TensorFlow (Bi-LSTM)
+# TensorFlow (Bi-LSTM). tf-keras provides the Keras-2 backend the Bi-LSTM needs —
+# TF 2.16+ ships Keras 3, which removed the text-preprocessing APIs it relies on.
 tensorflow==2.17.1
+tf-keras==2.17.0
 
 # Explainability
 shap==0.46.0
