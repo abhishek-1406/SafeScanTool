@@ -33,6 +33,8 @@ The app has four tabs: text analysis (pick SVM or BERT), meme analysis (OCR + CL
 Grad-CAM overlay), a model-comparison table, and the fairness audit. To run it yourself,
 see the quick start below.
 
+![SafeScan classifying a post, with class probabilities and word-level explanations](docs/screenshot.png)
+
 ## Quick start
 
 Three commands run the app with the SVM model and the fairness audit:
